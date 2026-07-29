@@ -1,0 +1,12 @@
+.env
+.env.local
+node_modules/
+.DS_Store
+*.log
+.claude/
+
+# Newsroom data — runtime state, stays on THIS computer, never committed.
+# Each install's meta/activity/error logs live only in its own data/ folder.
+# (.gitkeep preserves the empty folder on a fresh clone.)
+data/processed/*
+!data/processed/.gitkeep
