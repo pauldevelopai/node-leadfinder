@@ -1,4 +1,4 @@
-// LeadFinder — the L2B surface (build brief Phase 2). Lives under Tools → Nodes.
+// LeadFinder — the client-facing surface.
 // Four tabs: Today (the morning digest, leads ranked by conversion likelihood),
 // Review (the amber queue with evidence + accept/reject/reason + outcome
 // feedback), Sources (where to find leads — user-owned), Criteria (how leads are
@@ -261,7 +261,7 @@ function ReviewTab() {
   );
 }
 
-// ── Documents: what we need from L2B, and an easy way to send it ────────────
+// ── Documents: what we need from the client, and an easy way to send it ─────
 // The criteria and call sheet are the CLIENT'S artefacts, not ours — they exist
 // already, and they change. So this is a standing intake rather than a one-off
 // onboarding step: each upload supersedes the last and the history is kept, so
@@ -299,7 +299,7 @@ function DocumentsTab() {
   return (
     <div>
       <p style={{ color: '#6b6359', marginTop: 0, maxWidth: '66ch' }}>
-        The things LeadFinder needs from you. Most of these already exist inside L2B — we would rather
+        The things LeadFinder needs from you. Most of these already exist inside your business — we would rather
         use yours than invent our own. Send a new version whenever something changes; nothing is
         overwritten, so we can always see what the tool was working from at the time.
       </p>

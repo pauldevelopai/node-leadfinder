@@ -21,11 +21,14 @@ LeadFinder watches where leads appear, reads each one, and ranks them by how
 likely they are to convert — so the morning starts with a short list to act on
 rather than a pile to sift.
 
-Built for **Leads 2 Business**, who sell tender-intelligence subscriptions to
+Built first for a business selling tender-intelligence subscriptions to
 construction companies. The important consequence: **the lead is a company, not
-a tender.** Tenders are a signal *about* a company. See
-`docs/LEADFINDER_L2B_PLAN.md` in the tracker repo — that entity redirect is the
-main outstanding piece of work and it should land here, in this repo.
+a tender.** Tenders are a signal *about* a company. See the LeadFinder plan in
+the tracker repo — that entity redirect is the main outstanding piece of work
+and it should land here, in this repo.
+
+(Client specifics — who asked for what, and why — stay in the tracker repo's
+plan, which is not public. This repo describes the tool, not the customer.)
 
 ## The design rule that matters
 
