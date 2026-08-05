@@ -3,7 +3,8 @@
 node_modules/
 .DS_Store
 *.log
-.claude/
+.claude/*
+!.claude/commands/
 
 # Newsroom data — runtime state, stays on THIS computer, never committed.
 # Each install's meta/activity/error logs live only in its own data/ folder.
