@@ -12,8 +12,11 @@
   `company_outcomes` (the ladder to retained_12m), `cms_accounts` (the client's
   own book, for suppression). `criteria_versions` carries an `entity` column —
   one active version per entity ('tender' | 'company') per tenant.
-- **Hosted:** intended — `leadfinder-hosted` on the box, gated by the tracker
-  cookie. **Not yet deployed** (no port, pm2 process or Caddy block yet).
+- **Hosted:** `leadfinder-hosted` on the box, port 3009, gated by the tracker
+  cookie. **Live since 2026-08-19.** Canonical door (Grounded is the primary
+  front door): `https://grounded.developai.co.za/nodes/leadfinder/app/`;
+  MCP connector `https://grounded.developai.co.za/nodes/leadfinder/mcp`.
+  The same paths answer on beaiready.developai.co.za.
 - **AI:** Claude, via `lib/claude.js`. Exactly two model calls per tender, and
   neither one scores.
 - **UI:** React + Vite in `web/`, built into `public/` — the node-greenindex
