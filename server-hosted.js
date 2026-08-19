@@ -33,7 +33,10 @@ await createHostedServer({
   productName: 'LeadFinder',
   handlers: {},
   ensureSchema,
-  mountRoutes: (app, { hostFor }) => mountAppRoutes(app, hostFor),
+  // readUser gives routes the verified JWT identity — tenancy is resolved
+  // in-Node (see lib/routes.js) because the runtime's hostFor pins the tenant
+  // to the user id, which is wrong for tables FK'd to public.newsrooms.
+  mountRoutes: (app, { hostFor, readUser }) => mountAppRoutes(app, hostFor, readUser),
   nodeVersion: pkg.version,
   staticDir: join(__dirname, 'public'),
 });

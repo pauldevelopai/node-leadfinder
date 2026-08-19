@@ -1,6 +1,6 @@
 {
   "name": "node-leadfinder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "LeadFinder — a Node on GROUNDED. Overnight lead watching for businesses that sell to contractors: pull from your sources, read each one, rank by likelihood to convert, and drop anyone you already sell to.",
   "type": "module",

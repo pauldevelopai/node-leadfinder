@@ -1,8 +1,9 @@
 // LeadFinder — the client-facing surface.
-// Four tabs: Today (the morning digest, leads ranked by conversion likelihood),
-// Review (the amber queue with evidence + accept/reject/reason + outcome
-// feedback), Sources (where to find leads — user-owned), Criteria (how leads are
-// judged — user-owned, versioned). Tenant-scoped by the login (Wall 1).
+// Six tabs: Today (the morning tender digest), Call list (companies — the
+// actual leads: ranked, claimable, with the call sheet and the outcome ladder),
+// Review (the amber tender queue), Documents (the standing intake), Sources
+// (where to look — user-owned), Criteria (how leads are judged — user-owned,
+// versioned). Tenant-scoped by the login (Wall 1).
 import React, { useEffect, useState } from 'react';
 
 
@@ -28,6 +29,7 @@ const BAND = {
 };
 const KIND_LABELS = {
   etenders_ocds: 'National eTenders feed',
+  etenders_awards: 'eTenders awards (companies)',
   html: 'Web page', rss: 'RSS feed', puppeteer: 'Portal (browser)', email: 'Email inbox', upload: 'Manual upload',
 };
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -45,7 +47,7 @@ export default function BusinessLeadFinder() {
         the judgement calls; it does the watching.
       </p>
       <div role="tablist" style={{ display: 'inline-flex', gap: 4, padding: 4, background: '#f4efe9', border: '1px solid #e4dcd2', borderRadius: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-        {[['today', 'Today'], ['review', 'Review queue'], ['documents', 'Documents'], ['sources', 'Sources'], ['criteria', 'Criteria']].map(([k, label]) => (
+        {[['today', 'Today'], ['calllist', 'Call list'], ['review', 'Review queue'], ['documents', 'Documents'], ['sources', 'Sources'], ['criteria', 'Criteria']].map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             padding: '8px 15px', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 14,
             fontWeight: tab === k ? 700 : 500, color: tab === k ? '#fff' : '#6b6359',
@@ -54,6 +56,7 @@ export default function BusinessLeadFinder() {
         ))}
       </div>
       {tab === 'today' && <TodayTab onGoToSources={() => setTab('sources')} />}
+      {tab === 'calllist' && <CallListTab onGoToSources={() => setTab('sources')} />}
       {tab === 'review' && <ReviewTab />}
       {tab === 'documents' && <DocumentsTab />}
       {tab === 'sources' && <SourcesTab />}
@@ -236,6 +239,260 @@ function TenderDrawer({ id, onClose, onChanged }) {
               <button disabled={busy} onClick={() => outcome(true)} style={{ ...btnGhost, borderColor: '#166534', color: '#166534' }}>✓ Converted to a sale</button>
               <button disabled={busy} onClick={() => outcome(false)} style={{ ...btnGhost, borderColor: '#991b1b', color: '#991b1b' }}>✗ Didn’t convert</button>
             </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Call list: companies — the actual leads ─────────────────────────────────
+// The tab that replaces the manual morning: ranked new-to-us companies, each
+// with its evidence, a claim (first to take it owns it), the call sheet, and
+// the outcome ladder. The counter line is the tool's honesty: found / already
+// yours / to call.
+const GRADE_BANDS = [['', 'All grades'], ['6+', 'CIDB 6+'], ['2-5', 'CIDB 2–5'], ['1', 'CIDB 1']];
+const STAGES = [
+  ['claimed', 'Claimed'], ['called', 'Called'], ['meeting', 'Meeting booked'],
+  ['converted', 'Converted'], ['lost', 'Lost'], ['retained_90d', 'Retained 90d'], ['retained_12m', 'Retained 12m'],
+];
+
+function CallListTab({ onGoToSources }) {
+  const [data, setData] = useState(undefined);
+  const [gradeBand, setGradeBand] = useState('');
+  const [open, setOpen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const load = () => {
+    const qs = gradeBand ? `?grade_band=${encodeURIComponent(gradeBand)}` : '';
+    apiFetch(`companies${qs}`).then(setData).catch(() => setData(null));
+  };
+  useEffect(() => { load(); }, [gradeBand]);
+
+  const runNow = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const r = await apiFetch('companies/run', { method: 'POST', body: JSON.stringify({}) });
+      setMsg(`Swept ${r.sources} source${r.sources === 1 ? '' : 's'}: ${r.companies_new} new compan${r.companies_new === 1 ? 'y' : 'ies'}, ${r.signals_new} new signal${r.signals_new === 1 ? '' : 's'}, ${r.suppressed} suppressed as existing clients.`);
+      load();
+    } catch (e) { setMsg(e.message); } finally { setBusy(false); }
+  };
+
+  if (data === undefined) return <p style={{ color: '#8a8076' }}>Loading…</p>;
+  if (!data) return <p style={{ color: '#8a8076' }}>Couldn’t load the call list.</p>;
+  const k = data.counters || {};
+  const companies = data.companies || [];
+
+  return (
+    <div>
+      <section className="hub-band" style={{ background: '#fff', border: '1px solid #e4dcd2', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>Companies to call</h2>
+          <button onClick={runNow} disabled={busy} style={btnGhost}>{busy ? 'Sweeping…' : 'Run a sweep now'}</button>
+        </div>
+        <p style={{ color: '#4b463f', marginTop: 10, marginBottom: 0 }}>
+          <strong>{k.found ?? 0}</strong> found · <strong>{k.suppressed ?? 0}</strong> already yours ·{' '}
+          <strong style={{ color: '#166534' }}>{k.to_call ?? 0}</strong> to call
+          {k.new_7d ? <span style={{ color: '#8a8076' }}> · {k.new_7d} new this week</span> : null}
+        </p>
+        <p style={{ fontSize: 12.5, color: '#8a8076', marginTop: 6, marginBottom: 0 }}>
+          Companies winning and bidding on public work, pulled from the eTenders awards feed and ranked.
+          Claim one before you dial — a claimed company is yours, so nobody doubles a call.
+        </p>
+        {msg && <p style={{ fontSize: 13, color: '#166534', marginTop: 8, marginBottom: 0 }}>{msg}</p>}
+      </section>
+
+      <div style={{ display: 'inline-flex', gap: 4, marginBottom: 14, flexWrap: 'wrap' }}>
+        {GRADE_BANDS.map(([v, label]) => (
+          <button key={v || 'all'} onClick={() => setGradeBand(v)} style={{
+            ...btnGhost, padding: '5px 12px', fontSize: 12.5,
+            background: gradeBand === v ? '#c75b39' : 'transparent',
+            color: gradeBand === v ? '#fff' : '#6b6359',
+            borderColor: gradeBand === v ? '#c75b39' : '#e4dcd2',
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {companies.length === 0 ? (
+        <p style={{ color: '#8a8076' }}>
+          No companies yet{gradeBand ? ' in this grade band' : ''}.{' '}
+          {gradeBand ? 'Try another band.' : <>Add an <strong>eTenders awards</strong> source (<button onClick={onGoToSources} style={{ ...btnGhost, padding: '2px 8px', fontSize: 12.5 }}>Sources</button>) and run a sweep — or wait for tonight’s.</>}
+        </p>
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {companies.map((c) => <CompanyCard key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}
+        </div>
+      )}
+      {open && <CompanyDrawer id={open} onClose={() => setOpen(null)} onChanged={load} />}
+    </div>
+  );
+}
+
+function CompanyCard({ c, onOpen }) {
+  const b = c.band ? (BAND[c.band] || BAND.red) : null;
+  const stage = STAGES.find(([v]) => v === c.current_stage)?.[1];
+  return (
+    <button onClick={onOpen} className="hub-card" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid #e4dcd2', display: 'block', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</span>
+        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'baseline' }}>
+          {c.grade_band && <span style={{ background: '#f4efe9', color: '#6b6359', fontWeight: 700, fontSize: 11.5, padding: '2px 8px', borderRadius: 999 }}>CIDB {c.grade_band}</span>}
+          {b && <span style={{ background: b.bg, color: b.fg, fontWeight: 700, fontSize: 12, padding: '2px 9px', borderRadius: 999 }}>{b.label} · {c.total_score}</span>}
+        </span>
+      </div>
+      <div style={{ fontSize: 12.5, color: '#8a8076', marginTop: 4 }}>
+        {c.province || '—'} · {c.signals} signal{c.signals === 1 ? '' : 's'} · last {fmtDate(c.last_signal_at)}
+        {c.claimed_at && <span style={{ color: '#0369a1', fontWeight: 600 }}> · claimed by {c.claimed_by_name || 'a colleague'}</span>}
+        {stage && c.current_stage !== 'claimed' && <span style={{ color: '#166534', fontWeight: 600 }}> · {stage}</span>}
+      </div>
+    </button>
+  );
+}
+
+// ── Company drawer: evidence, claim, call sheet, outcome ladder ─────────────
+function CompanyDrawer({ id, onClose, onChanged }) {
+  const [c, setC] = useState(undefined);
+  const [me, setMe] = useState(null);
+  const [form, setForm] = useState(null);        // call-sheet definition
+  const [answers, setAnswers] = useState({});
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = () => apiFetch(`companies/${id}`).then(setC).catch(() => setC(null));
+  useEffect(() => {
+    load();
+    apiFetch('whoami').then(setMe).catch(() => {});
+    apiFetch('call-sheet-form').then(setForm).catch(() => setForm([]));
+  }, [id]);
+
+  const act = async (fn) => {
+    setBusy(true); setErr('');
+    try { await fn(); await load(); onChanged?.(); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+  const claim = () => act(() => apiFetch(`companies/${id}/claim`, { method: 'POST', body: JSON.stringify({}) }));
+  const unclaim = () => act(() => apiFetch(`companies/${id}/unclaim`, { method: 'POST', body: JSON.stringify({}) }));
+  const sendSheet = (decision) => act(() => apiFetch(`companies/${id}/call-sheet`, {
+    method: 'POST', body: JSON.stringify({ answers, decision, reason }),
+  }));
+  const setStage = (stage) => act(() => apiFetch(`companies/${id}/outcome`, {
+    method: 'POST', body: JSON.stringify({ stage, reason: stage === 'lost' ? reason : undefined }),
+  }));
+
+  const mine = c && me && c.claimed_by && c.claimed_by === me.id;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(600px, 100%)', background: '#faf7f3', height: '100%', overflowY: 'auto', padding: '22px 24px', boxShadow: '-4px 0 24px rgba(0,0,0,0.2)' }}>
+        <button onClick={onClose} style={{ ...btnGhost, float: 'right' }}>Close</button>
+        {c === undefined ? <p>Loading…</p> : !c ? <p>Not found.</p> : (
+          <>
+            <h2 style={{ marginTop: 0, fontSize: 19 }}>{c.name}</h2>
+            <p style={{ fontSize: 13, color: '#6b6359', marginTop: 0 }}>
+              {c.cidb_grading ? `CIDB ${c.cidb_grading}` : 'CIDB grading unknown'} · {c.province || 'province unknown'}
+              {c.reg_no ? ` · reg ${c.reg_no}` : ''}
+            </p>
+            {c.band && (
+              <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', margin: '4px 0 8px' }}>
+                <span style={{ background: (BAND[c.band] || BAND.red).bg, color: (BAND[c.band] || BAND.red).fg, fontWeight: 700, fontSize: 12, padding: '3px 10px', borderRadius: 999 }}>
+                  {(BAND[c.band] || BAND.red).label} · score {c.total_score}
+                </span>
+              </div>
+            )}
+            {c.routing_reason && <p style={{ fontSize: 12.5, color: '#8a8076', marginTop: 0 }}>{c.routing_reason}</p>}
+            {c.suppressed_as_existing && (
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#854d0e', background: '#fef9c3', padding: '6px 12px', borderRadius: 8, display: 'inline-block' }}>
+                Already a client{c.cms_match_name ? ` — matches “${c.cms_match_name}” in your client list` : ''}. Not on the call list.
+              </p>
+            )}
+
+            {/* Claim — first to take it owns it */}
+            <div style={{ margin: '10px 0 14px' }}>
+              {c.claimed_at ? (
+                <span style={{ fontSize: 13.5 }}>
+                  <strong style={{ color: '#0369a1' }}>Claimed by {mine ? 'you' : (c.claimed_by_name || 'a colleague')}</strong>
+                  {' '}on {fmtDate(c.claimed_at)}
+                  {mine && <button onClick={unclaim} disabled={busy} style={{ ...btnGhost, padding: '3px 10px', fontSize: 12.5, marginLeft: 10 }}>Release</button>}
+                </span>
+              ) : (
+                <button onClick={claim} disabled={busy} style={btn}>Claim this company — I’ll call them</button>
+              )}
+            </div>
+
+            {/* Contacts */}
+            <div className="hub-card-kicker">Contacts</div>
+            <ul style={{ margin: '6px 0 14px', paddingLeft: 16, fontSize: 13 }}>
+              {(Array.isArray(c.contacts) ? c.contacts : []).length === 0 && <li style={{ color: '#8a8076' }}>None on record yet.</li>}
+              {(Array.isArray(c.contacts) ? c.contacts : []).map((p, i) => (
+                <li key={i}>{[p.name, p.email, p.phone].filter(Boolean).join(' · ') || '—'}</li>
+              ))}
+            </ul>
+
+            {/* Evidence — the signals behind the ranking */}
+            <div className="hub-card-kicker">Why they’re on the list</div>
+            <ul style={{ margin: '6px 0 14px', paddingLeft: 16, fontSize: 13 }}>
+              {(c.signals || []).length === 0 && <li style={{ color: '#8a8076' }}>No signals recorded.</li>}
+              {(c.signals || []).map((s, i) => (
+                <li key={i}>{s.evidence_note || s.kind} <span style={{ color: '#8a8076' }}>({fmtDate(s.occurred_at)})</span></li>
+              ))}
+            </ul>
+
+            {/* Outcome ladder */}
+            <div className="hub-card-kicker">Where it stands</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '6px 0 6px' }}>
+              {STAGES.map(([v, label]) => (
+                <button key={v} onClick={() => setStage(v)} disabled={busy} style={{
+                  ...btnGhost, padding: '4px 10px', fontSize: 12,
+                  background: c.current_stage === v ? '#c75b39' : 'transparent',
+                  color: c.current_stage === v ? '#fff' : '#6b6359',
+                  borderColor: c.current_stage === v ? '#c75b39' : '#e4dcd2',
+                }}>{label}</button>
+              ))}
+            </div>
+            <p style={{ fontSize: 11.5, color: '#8a8076', margin: '0 0 14px' }}>
+              Tap the step you’ve reached. Every step is kept — this history is what teaches LeadFinder which leads were worth finding.
+            </p>
+
+            {/* Call sheet */}
+            <div className="hub-card-kicker">Call sheet</div>
+            <div style={{ display: 'grid', gap: 8, margin: '8px 0 10px' }}>
+              {(form || []).map((f) => (
+                <label key={f.key} style={lbl}>{f.label}
+                  {f.type === 'yesno' ? (
+                    <select style={inp} value={answers[f.key] ?? ''} onChange={(e) => setAnswers({ ...answers, [f.key]: e.target.value })}>
+                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                    </select>
+                  ) : f.type === 'textarea' ? (
+                    <textarea style={{ ...inp, minHeight: 56 }} value={answers[f.key] ?? ''} onChange={(e) => setAnswers({ ...answers, [f.key]: e.target.value })} />
+                  ) : (
+                    <input style={inp} value={answers[f.key] ?? ''} onChange={(e) => setAnswers({ ...answers, [f.key]: e.target.value })} />
+                  )}
+                </label>
+              ))}
+              <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason / note (kept with the decision)…" style={{ ...inp, minHeight: 48 }} />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button disabled={busy} onClick={() => sendSheet('accept')} style={btn}>Save sheet — worth pursuing</button>
+                <button disabled={busy} onClick={() => sendSheet('reject')} style={btnGhost}>Save sheet — not viable</button>
+                <button disabled={busy} onClick={() => sendSheet(undefined)} style={btnGhost}>Save without a verdict</button>
+              </div>
+            </div>
+
+            {/* History */}
+            {(c.outcomes || []).length > 0 && (
+              <>
+                <div className="hub-card-kicker">History</div>
+                <ul style={{ margin: '6px 0 14px', paddingLeft: 16, fontSize: 12.5, color: '#6b6359' }}>
+                  {c.outcomes.map((o, i) => (
+                    <li key={i}>{STAGES.find(([v]) => v === o.stage)?.[1] || o.stage} — {fmtDate(o.recorded_at)}{o.reason ? ` (${o.reason})` : ''}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {err && <p style={{ fontSize: 13, color: '#B91C1C' }}>{err}</p>}
           </>
         )}
       </div>
@@ -436,7 +693,7 @@ function SourcesTab() {
           <label style={lbl}>Name<input style={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. National eTender portal" /></label>
           <label style={lbl}>Kind
             <select style={inp} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
-              {['etenders_ocds', 'html', 'rss', 'puppeteer', 'email', 'upload'].map((k) => <option key={k} value={k}>{KIND_LABELS[k] || k}</option>)}
+              {['etenders_ocds', 'etenders_awards', 'html', 'rss', 'puppeteer', 'email', 'upload'].map((k) => <option key={k} value={k}>{KIND_LABELS[k] || k}</option>)}
             </select>
           </label>
           <label style={lbl}>Location (URL / inbox)<input style={inp} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="https://…" /></label>

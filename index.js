@@ -20,14 +20,21 @@ const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
 await ensureSchema(pool);
 
-const host = createLiteHost({ slug: 'leadfinder' });
+// appSlug, not slug — v0.14's createLiteHost throws on the latter. (The lite
+// host's tenancy is unused here anyway: routes resolve LEADFINDER_TENANT.)
+const host = createLiteHost({ appSlug: 'leadfinder', nodeVersion: pkg.version });
 
-await createServer({
+// v0.14's LOCAL createServer has no mountRoutes option (only the hosted entry
+// does) — it silently ignored the one this file used to pass, which is why
+// local mode never actually served the LeadFinder API. It does return the
+// express app, so the routes mount after the fact; Express is happy to take
+// routes post-listen, and /api/* doesn't collide with the static mount.
+const app = createServer({
   slug: 'leadfinder',
-  productName: 'LeadFinder',
+  displayName: 'LeadFinder',
   host,
   handlers: {},
-  mountRoutes: (app) => mountAppRoutes(app, () => host),
   nodeVersion: pkg.version,
   staticDir: join(__dirname, 'public'),
 });
+mountAppRoutes(app, () => host);

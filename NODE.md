@@ -4,9 +4,14 @@
 - **Display name:** LeadFinder
 - **Repo:** `pauldevelopai/node-leadfinder`
 - **Storage:** Postgres tables in their own `leadfinder` schema, created by
-  `lib/schema.js` via `ensureSchema` (the node-analytics pattern). Ten tables:
-  `sources`, `criteria_versions`, `criteria_weights`, `raw_items`, `tenders`,
-  `tender_flags`, `review_decisions`, `lead_outcomes`, `runs`, `documents`.
+  `lib/schema.js` via `ensureSchema` (the node-analytics pattern). Fifteen
+  tables: the original ten (`sources`, `criteria_versions`, `criteria_weights`,
+  `raw_items`, `tenders`, `tender_flags`, `review_decisions`, `lead_outcomes`,
+  `runs`, `documents`) plus the company side (plan v2 — the company IS the
+  lead): `companies`, `company_signals`, `company_reviews` (call sheets),
+  `company_outcomes` (the ladder to retained_12m), `cms_accounts` (the client's
+  own book, for suppression). `criteria_versions` carries an `entity` column —
+  one active version per entity ('tender' | 'company') per tenant.
 - **Hosted:** intended — `leadfinder-hosted` on the box, gated by the tracker
   cookie. **Not yet deployed** (no port, pm2 process or Caddy block yet).
 - **AI:** Claude, via `lib/claude.js`. Exactly two model calls per tender, and
@@ -14,6 +19,11 @@
 - **UI:** React + Vite in `web/`, built into `public/` — the node-greenindex
   pattern. `base: './'` so the same bundle serves `/` locally and
   `/nodes/leadfinder/app/` hosted.
+- **MCP:** the node is also a connector — `/mcp` (JSON-RPC 2.0 + SSE, the
+  tracker's policy-mcp pattern) works from Claude.ai / ChatGPT with a Bearer
+  key minted at `/api/mcp-keys` (per-tenant, hashed, revocable). Eight tools
+  covering the whole loop, log_outcome included; every call is logged to
+  `leadfinder.mcp_usage`. See `lib/mcp.js`.
 
 ## What it does
 
