@@ -51,6 +51,13 @@ const MARKER = 'L2B informed-guess company criteria (site + 27 Jul calls) — re
 
 const THRESHOLDS = { green_min: 65, red_max: 35, hard_rules: [] };
 const WEIGHTS = [
+  // sector_fit (w 4.0, the heaviest) — added 2026-08-19 after law firms, security
+  // companies and IT suppliers topped the call list purely on big public-contract
+  // wins. L2B sells CONSTRUCTION tender intelligence: if a company isn't a
+  // contractor it isn't a lead, whatever it won. Scores linearly on sectorFit()
+  // (CIDB grading shape first, company name second, honest uncertainty last).
+  { component: 'sector_fit', weight: 4.0,
+    rule: { type: 'range', field: 'sector_fit', ideal_min: 1, ideal_max: 1, hard_min: 0, missing_score: 0.3 } },
   { component: 'bidding_activity', weight: 3.0,
     rule: { type: 'range', field: 'signal_count_180d', ideal_min: 2, ideal_max: 9007199254740991, hard_min: 0, missing_score: 0 } },
   { component: 'losing_bids', weight: 2.5,
